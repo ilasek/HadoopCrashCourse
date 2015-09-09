@@ -1,0 +1,66 @@
+CREATE TABLE pubmed_texts(
+    source  STRING,
+    title   STRING,
+    authors STRING,
+    institution STRING,
+    txt    STRING,
+    pmid    STRING
+)
+COMMENT 'Pubmed texts'
+STORED AS ORC;
+
+sqoop import --connect jdbc:postgresql://172.16.192.1/hadoopdemo \
+   --username hadoopdemo -P \
+   --table pubmed_texts \
+   --hcatalog-database hadoopdemo --hcatalog-table pubmed_texts \
+   -m 1
+
+
+elasticsearch --config=/usr/local/opt/elasticsearch/config/elasticsearch.yml
+
+http://localhost:9200/
+
+ADD JAR hdfs:///user/root/elasticsearch-hadoop-2.1.1.jar;
+
+CREATE EXTERNAL TABLE pubmed_texts_elastic (
+    source  STRING,
+    title   STRING,
+    authors STRING,
+    institution STRING,
+    txt    STRING,
+    pmid    STRING,
+    proteins_count SMALLINT
+)
+STORED BY 'org.elasticsearch.hadoop.hive.EsStorageHandler'
+TBLPROPERTIES('es.resource' = 'pubmed/texts',
+              'es.index.auto.create' = 'true',
+              'es.nodes' = '172.16.192.1') ;
+
+ADD JAR hdfs:///user/root/pubmed-udf-1.0-SNAPSHOT.jar;
+CREATE TEMPORARY FUNCTION parse_pubmed AS 'com.msd.gic.hive.udf.ParsePubmedUDF';
+SELECT title, parse_pubmed(txt) FROM pubmed_texts LIMIT 20;
+
+INSERT OVERWRITE TABLE pubmed_texts_elastic SELECT *, parse_pubmed(txt) FROM pubmed_texts;
+
+http://localhost:9200/_cat/indices?v
+
+http://localhost:9200/pubmed/_search?q=source:mol&pretty
+
+curl -XDELETE 'http://localhost:9200/pubmed/'
+
+http://localhost:5601/#/settings/indices/?_g=()
+
+
+CREATE TABLE pubmed_texts (
+    source  VARCHAR(250),
+    title   VARCHAR(250),
+    authors VARCHAR(250),
+    institution VARCHAR(250),
+    abstract    TEXT,
+    pmid    VARCHAR(250)
+);
+
+
+http://webconfig.merck.com/autoproxy.pac
+
+lsof -i -P | grep 9200
